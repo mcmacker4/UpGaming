@@ -40,7 +40,6 @@ function update() {
     if(player.dead) return;
     aliveTime += delta;
     maxEnemies = startingEnemies + Math.round((Date.now() - startTime) / 30000);
-    clear();
     player.update();
     Bullet.shoot();
     Bullet.updateAll();
@@ -49,8 +48,8 @@ function update() {
 }
 
 function render() {
+    clear();
     Bullet.renderAll();
-    drawBullets();
     player.render();
     Enemy.renderAll();
     TextParticle.renderAll();
@@ -83,16 +82,10 @@ function drawInfo() {
     g.fillText("Time: " + time, main_canvas.width - g.measureText("Time: " + time).width - 10, 20 + 22);
     g.fillText("Score: " + Math.round(score), main_canvas.width - g.measureText("Score: " + Math.round(score)).width - 10, 20 + 22 * 2);
 
-    var grad = g.createLinearGradient(main_canvas.width - 110, 3, main_canvas.width - 10, 3);
-    grad.addColorStop(0, "#C00");
-    grad.addColorStop(0.1, "#C00");
-    grad.addColorStop(0.1, "green");
-    grad.addColorStop(1, "green");
-    g.fillStyle = grad;
-
+    g.fillStyle = "#0C0";
     g.fillRect(main_canvas.width - 110, 3, 100, 16);
 
-    g.fillStyle = "#000";
+    g.fillStyle = "#C00";
     var width = 100 - (player.hp / Player.maxHealth * 100);
     g.fillRect(main_canvas.width - 10 - width, 3, width, 16);
 
@@ -104,22 +97,12 @@ function drawInfo() {
     }
 }
 
-function drawBullets() {
-    if(!player.dead) {
-        trail_g.fillStyle = "rgba(0, 0, 0, .2)";
-        trail_g.fillRect(0, 0, trail_canvas.width, trail_canvas.height);
-        for (var i = 0; i < bullets.length; i++)
-            bullets[i].render();
-    }
-    g.drawImage(trail_canvas, 0, 0, main_canvas.width, main_canvas.height);
-}
-
 function calculateFPS() {
     var now = Date.now();
     delta = now - lastFrame;
     lastFrame = now;
-    if(now - lastFps > 100) {
-        FPS = frameCount * 10;
+    if(now - lastFps > 1000) {
+        FPS = frameCount;
         frameCount = 0;
         lastFps = now;
     }
@@ -289,8 +272,8 @@ Enemy.prototype.update = function() {
 Enemy.prototype.render = function() {
     g.beginPath();
     g.fillStyle = "#F44";
-    g.strokeStyle = "#F00";
-    g.strokeWidth = 4;
+    g.strokeStyle = "#A00";
+    g.lineWidth = 2;
     g.arc(this.pos.x, this.pos.y, this.hp + 5, 0, 2*Math.PI);
     g.fill();
     g.stroke();
@@ -309,6 +292,7 @@ Enemy.prototype.hit = function(dmg) {
     if(this.hp <= 0) {
         this.dead = true;
         score += 100;
+        TextParticle.spawn("+100", this.pos);
     }
 };
 
@@ -390,6 +374,16 @@ Bullet.updateAll = function() {
     }
 };
 
+Bullet.renderAll = function() {
+    if(!player.dead) {
+        trail_g.fillStyle = "rgba(0, 0, 0, .2)";
+        trail_g.fillRect(0, 0, trail_canvas.width, trail_canvas.height);
+        for (var i = 0; i < bullets.length; i++)
+            bullets[i].render();
+    }
+    g.drawImage(trail_canvas, 0, 0, main_canvas.width, main_canvas.height);
+};
+
 Bullet.shoot = function() {
     var now = Date.now();
     if(now - lastBullet < 1000 / Bullet.shootFreq)
@@ -413,13 +407,7 @@ Bullet.shoot = function() {
     }
 };
 
-Bullet.renderAll = function() {
-    for(var i = 0; i < bullets.length; i++) {
-        bullets[i].render();
-    }
-};
-
-
+//-------Text Particles--------------
 var textParticles = [];
 function TextParticle(text, pos) {
     this.text = text;
@@ -428,14 +416,14 @@ function TextParticle(text, pos) {
 }
 
 TextParticle.prototype.update = function() {
-    this.pos.sub(0, 2);
-    this.opacity -= 0.05;
+    this.pos.sub(0, 1);
+    this.opacity -= 0.03;
 };
 
 TextParticle.prototype.render = function() {
-    g.font = "8px Verdana";
-    g.fontWeight = "normal";
-    g.fillStyle = "#F00";
+    g.font = "16px Verdana";
+    g.fontWeight = "bold";
+    g.fillStyle = "rgba(0, 255, 0, " + this.opacity + ")";
     g.fillText(this.text, this.pos.x - g.measureText(this.text).width / 2, this.pos.y);
 };
 
