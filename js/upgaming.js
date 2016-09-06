@@ -1,8 +1,7 @@
 //Author: McMacker4 (Hans) Under MIT License - 2016
 
-var jqCanvas = $("#upgaming");
-var main_canvas = jqCanvas.get(0);
-var trail_canvas = $("#trail_canvas").get(0);
+var main_canvas = document.getElementById("upgaming");
+var trail_canvas = document.getElementById("trail_canvas");
 var g = main_canvas.getContext('2d');
 var trail_g = trail_canvas.getContext('2d');
 
@@ -62,6 +61,16 @@ function clear() {
     g.fillRect(0, 0, main_canvas.width, main_canvas.height);
 }
 
+function reset() {
+    enemies = [];
+    bullets = [];
+    textParticles = [];
+    score = 0;
+    aliveTime = 0;
+    maxEnemies = startingEnemies;
+    player = new Player();
+}
+
 function drawInfo() {
     g.font = "20px Verdana";
     g.fontWeight = "normal";
@@ -94,6 +103,8 @@ function drawInfo() {
         g.fontWeight = "bold";
         g.fillStyle = "#FFF";
         g.fillText("DEAD", main_canvas.width / 2 - g.measureText("DEAD").width / 2, main_canvas.height / 2);
+        g.font = "16px Verdana";
+        g.fillText("Press SPACE to restart.", main_canvas.width / 2 - g.measureText("Press SPACE to restart.").width / 2, main_canvas.height / 2 + 18);
     }
 }
 
@@ -127,42 +138,57 @@ function drawDebugInfo() {
 
 
 //================== EVENTS ====================
-$(window).resize(function() {
+
+var KEY_W = 87,
+    KEY_A = 65,
+    KEY_S = 83,
+    KEY_D = 68,
+    KEY_R = 82,
+    KEY_X = 88,
+    KEY_SPACE = 32,
+    ARROW_UP = 38,
+    ARROW_DOWN = 40,
+    ARROW_RIGHT = 39,
+    ARROW_LEFT = 37;
+
+window.onresize = function() {
     main_canvas.width = window.innerWidth;
     main_canvas.height = window.innerHeight;
     trail_canvas.width = main_canvas.width;
     trail_canvas.height = main_canvas.height;
     render();
-});
+};
 
 var keyStates = {};
-$(window).keydown(function(evt) {
-    keyStates[evt.key] = true;
-});
-$(window).keyup(function(evt) {
-    keyStates[evt.key] = false;
-    if(evt.key == 'r')
+window.onkeydown = function(evt) {
+    keyStates[evt.keyCode] = true;
+};
+window.onkeyup = function(evt) {
+    keyStates[evt.keyCode] = false;
+    if(evt.keyCode == KEY_R)
         debugEnabled = !debugEnabled;
-});
+    if((player.dead && evt.keyCode == KEY_SPACE) || evt.keyCode == KEY_X)
+        reset();
+};
 
 var mousePos = { x: 0, y: 0 };
 var mouseDown = false;
-jqCanvas.mousemove(function(evt) {
+main_canvas.onmousemove = function(evt) {
     mousePos.x = evt.pageX;
     mousePos.y = evt.pageY;
-});
+};
 
-jqCanvas.mousedown(function() {
+main_canvas.onmousedown = function() {
     mouseDown = true;
-});
+};
 
-jqCanvas.mouseup(function() {
+main_canvas.onmouseup = function() {
     mouseDown = false;
-});
+};
 
-jqCanvas.mouseleave(function() {
+main_canvas.onmouseleave = function() {
     mouseDown = false;
-});
+};
 
 //================== CLASSES ====================
 //-------Player--------------
@@ -183,16 +209,16 @@ Player.prototype.update = function() {
 
     var rad = this.hp * 0.05 + 10;
 
-    if(keyStates['a'] && !keyStates['d'])
+    if(keyStates[KEY_A] && !keyStates[KEY_D])
         this.dir.x = -1;
-    else if(keyStates['d'] && !keyStates['a'])
+    else if(keyStates[KEY_D] && !keyStates[KEY_A])
         this.dir.x = 1;
     else
         this.dir.x = 0;
 
-    if(keyStates['w'] && !keyStates['s'])
+    if(keyStates[KEY_W] && !keyStates[KEY_S])
         this.dir.y = -1;
-    else if(keyStates['s'] && !keyStates['w'])
+    else if(keyStates[KEY_S] && !keyStates[KEY_W])
         this.dir.y = 1;
     else
         this.dir.y = 0;
@@ -392,13 +418,13 @@ Bullet.shoot = function() {
     var dir = null;
     if(mouseDown) {
         dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y).normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates['ArrowUp'] || keyStates['Up']) {
+    } else if(keyStates[ARROW_UP]) {
         dir = new Vector(0, -1).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates['ArrowDown'] || keyStates['Down']) {
+    } else if(keyStates[ARROW_DOWN]) {
         dir = new Vector(0, 1).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates['ArrowRight'] || keyStates['Right']) {
+    } else if(keyStates[ARROW_RIGHT]) {
         dir = new Vector(1, 0).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates['ArrowLeft'] || keyStates['Left']) {
+    } else if(keyStates[ARROW_LEFT]) {
         dir = new Vector(-1, 0).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
     }
     if(dir != null) {
