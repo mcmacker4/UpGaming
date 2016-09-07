@@ -19,9 +19,10 @@ var maxEnemies = startingEnemies;
 
 var debugEnabled = false;
 
-var lastBullet = 0;
-
 var score = 0;
+
+var WEAPON_CLASSIC = new Weapon();
+var WEAPON_TRIPLE = new TripleBeamWeapon();
 
 main_canvas.width = window.innerWidth;
 main_canvas.height = window.innerHeight;
@@ -40,7 +41,6 @@ function update() {
     aliveTime += delta;
     maxEnemies = startingEnemies + Math.round((Date.now() - startTime) / 30000);
     player.update();
-    Bullet.shoot();
     Bullet.updateAll();
     Enemy.updateAll();
     TextParticle.updateAll();
@@ -151,6 +151,10 @@ var KEY_W = 87,
     ARROW_RIGHT = 39,
     ARROW_LEFT = 37;
 
+var CLICK_LEFT = 0,
+    CLICK_MIDDLE = 1,
+    CLICK_RIGHT = 2;
+
 window.onresize = function() {
     main_canvas.width = window.innerWidth;
     main_canvas.height = window.innerHeight;
@@ -176,22 +180,24 @@ window.onkeyup = function(evt) {
 };
 
 var mousePos = { x: 0, y: 0 };
-var mouseDown = false;
+var mouseStates = {};
 main_canvas.onmousemove = function(evt) {
     mousePos.x = evt.pageX;
     mousePos.y = evt.pageY;
 };
 
-main_canvas.onmousedown = function() {
-    mouseDown = true;
+main_canvas.onmousedown = function(evt) {
+    mouseStates[evt.button] = true;
 };
 
-main_canvas.onmouseup = function() {
-    mouseDown = false;
+main_canvas.onmouseup = function(evt) {
+    mouseStates[evt.button] = false;
 };
 
 main_canvas.onmouseleave = function() {
-    mouseDown = false;
+    mouseStates[CLICK_LEFT] = false;
+    mouseStates[CLICK_MIDDLE] = false;
+    mouseStates[CLICK_RIGHT] = false;
 };
 
 //================== CLASSES ====================
@@ -241,6 +247,9 @@ Player.prototype.update = function() {
         this.pos.x = main_canvas.width - rad;
     if(this.pos.y > main_canvas.height - rad)
         this.pos.y = main_canvas.height - rad;
+
+    Player.shoot();
+
 };
 
 Player.prototype.render = function() {
@@ -256,6 +265,31 @@ Player.prototype.hit = function(dmg) {
     if(this.hp <= 0) {
         this.hp = 0;
         this.dead = true;
+    }
+};
+
+Player.shoot = function() {
+    var pos = new Vector(player.pos.x, player.pos.y);
+    var dir = new Vector(0, 0);
+    var weapon = WEAPON_TRIPLE;
+    if(mouseStates[CLICK_LEFT] || mouseStates[CLICK_RIGHT]) {
+        dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y);
+        weapon = mouseStates[CLICK_LEFT] ? WEAPON_CLASSIC : WEAPON_TRIPLE;
+    } else {
+        if(keyStates[ARROW_LEFT] && !keyStates[ARROW_RIGHT]) {
+            dir.x = -1;
+        } else if(keyStates[ARROW_RIGHT] && !keyStates[ARROW_LEFT]) {
+            dir.x = 1;
+        }
+        if(keyStates[ARROW_UP] && !keyStates[ARROW_DOWN]) {
+            dir.y = -1;
+        } else if(keyStates[ARROW_DOWN] && !keyStates[ARROW_UP]) {
+            dir.y = 1;
+        }
+    }
+    if(dir.x !=  0 || dir.y != 0) {
+        dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
+        weapon.shoot(pos, dir);
     }
 };
 
@@ -358,8 +392,6 @@ function Bullet(pos, dir, color) {
     this.color = (typeof color == 'undefined') ? "#0F0" : color;
 }
 
-Bullet.shootFreq = 10;
-
 Bullet.prototype.update = function() {
     this.pos.add(this.dir);
 };
@@ -414,32 +446,11 @@ Bullet.renderAll = function() {
     g.drawImage(trail_canvas, 0, 0, main_canvas.width, main_canvas.height);
 };
 
-Bullet.shoot = function() {
-    var now = Date.now();
-    if(now - lastBullet < 1000 / Bullet.shootFreq)
-        return;
-    var pos = new Vector(player.pos.x, player.pos.y);
-    var dir = new Vector(0, 0);
-    if(mouseDown) {
-        dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y);
-    } else {
-        if(keyStates[ARROW_LEFT] && !keyStates[ARROW_RIGHT]) {
-            dir.x = -1;
-        } else if(keyStates[ARROW_RIGHT] && !keyStates[ARROW_LEFT]) {
-            dir.x = 1;
-        }
-        if(keyStates[ARROW_UP] && !keyStates[ARROW_DOWN]) {
-            dir.y = -1;
-        } else if(keyStates[ARROW_DOWN] && !keyStates[ARROW_UP]) {
-            dir.y = 1;
-        }
-    }
-    if(dir.x !=  0 || dir.y != 0) {
-        dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-        bullets.push(new Bullet(pos, dir));
-        lastBullet = now;
-    }
+Bullet.spawn = function(pos, dir) {
+    bullets.push(new Bullet(pos, dir))
 };
+
+
 
 //-------Text Particles--------------
 var textParticles = [];
@@ -478,6 +489,44 @@ TextParticle.renderAll = function() {
 TextParticle.spawn = function(text, pos) {
     textParticles.push(new TextParticle(text, pos));
 };
+
+//Classic weapon
+function Weapon() {
+    this.freq = 10;
+    this.lastBullet = Date.now();
+}
+Weapon.prototype.shoot = function(o, dir) {
+    if(this.canShoot()) {
+        Bullet.spawn(o, dir);
+        this.lastBullet = Date.now();
+    }
+};
+
+Weapon.prototype.canShoot = function() {
+    return this.lastBullet + (1000 / this.freq) < Date.now();
+};
+
+//Tripple beam weapon
+function TripleBeamWeapon() {
+    Weapon.call(this);
+    this.freq = 4;
+}
+TripleBeamWeapon.prototype.shoot = function(o, dir) {
+    if(this.canShoot()) {
+        var dir1 = new Vector(dir);
+        var dir2 = new Vector(dir).rotate(toRadians(10));
+        var dir3 = new Vector(dir).rotate(toRadians(-10));
+        Bullet.spawn(o, dir1);
+        Bullet.spawn(o, dir2);
+        Bullet.spawn(o, dir3);
+        this.lastBullet = Date.now();
+    }
+};
+
+TripleBeamWeapon.prototype.canShoot = function() {
+    return this.lastBullet + (1000 / this.freq) < Date.now();
+};
+
 
 //-------Vector--------------
 function Vector(x, y) {
@@ -552,9 +601,20 @@ Vector.prototype.dist = function(vec) {
     return Math.sqrt(Math.pow(Math.abs(vec.x - this.x), 2) + Math.pow(Math.abs(vec.y - this.y), 2));
 };
 
-Vector.prototype.toString = function() {
-    return "(" + this.x + ", " + this.y + ")";
+Vector.prototype.rotate = function(angle) {
+    var sin = Math.sin(angle);
+    var cos = Math.cos(angle);
+    var x = this.x * cos - this.y * sin;
+    var y = this.x * sin + this.y * cos;
+    this.x = x;
+    this.y = y;
+    return this;
 };
+
+
+function toRadians(deg) {
+    return deg * Math.PI / 180;
+}
 
 
 //Initializing stuff
