@@ -67,7 +67,7 @@ function reset() {
     textParticles = [];
     score = 0;
     aliveTime = 0;
-    maxEnemies = startingEnemies;
+    startTime = Date.now();
     player = new Player();
 }
 
@@ -157,6 +157,10 @@ window.onresize = function() {
     trail_canvas.width = main_canvas.width;
     trail_canvas.height = main_canvas.height;
     render();
+};
+
+window.oncontextmenu = function() {
+    return false;
 };
 
 var keyStates = {};
@@ -415,19 +419,23 @@ Bullet.shoot = function() {
     if(now - lastBullet < 1000 / Bullet.shootFreq)
         return;
     var pos = new Vector(player.pos.x, player.pos.y);
-    var dir = null;
+    var dir = new Vector(0, 0);
     if(mouseDown) {
-        dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y).normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates[ARROW_UP]) {
-        dir = new Vector(0, -1).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates[ARROW_DOWN]) {
-        dir = new Vector(0, 1).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates[ARROW_RIGHT]) {
-        dir = new Vector(1, 0).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
-    } else if(keyStates[ARROW_LEFT]) {
-        dir = new Vector(-1, 0).scale(Player.bulletSpeed).add(player.dir.scale(0.2));
+        dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y);
+    } else {
+        if(keyStates[ARROW_LEFT] && !keyStates[ARROW_RIGHT]) {
+            dir.x = -1;
+        } else if(keyStates[ARROW_RIGHT] && !keyStates[ARROW_LEFT]) {
+            dir.x = 1;
+        }
+        if(keyStates[ARROW_UP] && !keyStates[ARROW_DOWN]) {
+            dir.y = -1;
+        } else if(keyStates[ARROW_DOWN] && !keyStates[ARROW_UP]) {
+            dir.y = 1;
+        }
     }
-    if(dir != null) {
+    if(dir.x !=  0 || dir.y != 0) {
+        dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
         bullets.push(new Bullet(pos, dir));
         lastBullet = now;
     }
