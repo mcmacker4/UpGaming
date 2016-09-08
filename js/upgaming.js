@@ -5,7 +5,6 @@ var trail_canvas = document.getElementById("trail_canvas");
 var g = main_canvas.getContext('2d');
 var trail_g = trail_canvas.getContext('2d');
 
-var startTime = Date.now();
 var lastFrame = 0;
 var delta = 0;
 var frameCount = 0;
@@ -20,6 +19,8 @@ var maxEnemies = startingEnemies;
 var debugEnabled = false;
 
 var score = 0;
+
+var paused = false;
 
 var WEAPON_CLASSIC = new Weapon();
 var WEAPON_TRIPLE = new TripleBeamWeapon();
@@ -38,8 +39,9 @@ function frame() {
 
 function update() {
     if(player.dead) return;
+    if(paused) delta = 0;
     aliveTime += delta;
-    maxEnemies = startingEnemies + Math.round((Date.now() - startTime) / 30000);
+    maxEnemies = startingEnemies + aliveTime / 30000;
     player.update();
     Bullet.updateAll();
     Enemy.updateAll();
@@ -67,7 +69,6 @@ function reset() {
     textParticles = [];
     score = 0;
     aliveTime = 0;
-    startTime = Date.now();
     player = new Player();
 }
 
@@ -90,6 +91,16 @@ function drawInfo() {
     g.fillText("Health: ", main_canvas.width - g.measureText("Health: ").width - 120, 20);
     g.fillText("Time: " + time, main_canvas.width - g.measureText("Time: " + time).width - 10, 20 + 22);
     g.fillText("Score: " + Math.round(score), main_canvas.width - g.measureText("Score: " + Math.round(score)).width - 10, 20 + 22 * 2);
+
+    g.fillText("McMacker4.com © 2016", main_canvas.width - g.measureText("McMacker4.com © 2016").width - 10, main_canvas.height - 3);
+    
+    if(paused) {
+        g.font = "120px Verdana";
+        g.fontWeight = "bold";
+        g.fillStyle = "#FFF";
+        g.fillText("PAUSED", main_canvas.width / 2 - g.measureText("PAUSED").width / 2, main_canvas.height / 2);
+    }
+
 
     g.fillStyle = "#0C0";
     g.fillRect(main_canvas.width - 110, 3, 100, 16);
@@ -126,7 +137,6 @@ function drawDebugInfo() {
     g.font = "14px Verdana";
     g.fontWeight = "normal";
     g.fillStyle = "#FFF";
-    g.fillText("McMacker4.com © 2016", main_canvas.width - 170, main_canvas.height - 3);
     g.fillText("DT: " + delta, 10, 20);
     g.fillText("FPS: " + FPS, 10, 20 + 18);
     g.fillText("Bullets: " + bullets.length, 10, 20 + 18 * 2);
@@ -146,6 +156,7 @@ var KEY_W = 87,
     KEY_R = 82,
     KEY_X = 88,
     KEY_SPACE = 32,
+    KEY_ESCAPE = 27,
     ARROW_UP = 38,
     ARROW_DOWN = 40,
     ARROW_RIGHT = 39,
@@ -177,6 +188,8 @@ window.onkeyup = function(evt) {
         debugEnabled = !debugEnabled;
     if((player.dead && evt.keyCode == KEY_SPACE) || evt.keyCode == KEY_X)
         reset();
+    if(evt.keyCode == KEY_ESCAPE)
+        paused = !paused;
 };
 
 var mousePos = { x: 0, y: 0 };
@@ -203,8 +216,8 @@ main_canvas.onmouseleave = function() {
 //================== CLASSES ====================
 //-------Player--------------
 
-Player.speed = 3;
-Player.bulletSpeed = 10;
+Player.speed = 0.15;
+Player.bulletSpeed = 0.6;
 Player.maxHealth = 100;
 
 var player = new Player();
@@ -213,10 +226,12 @@ function Player() {
     this.dir = new Vector(0, 0);
     this.hp = Player.maxHealth;
     this.dead = false;
+    this.lastShot = 0;
 }
 
 Player.prototype.update = function() {
 
+    this.lastShot += delta;
     var rad = this.hp * 0.05 + 10;
 
     if(keyStates[KEY_A] && !keyStates[KEY_D])
@@ -235,7 +250,7 @@ Player.prototype.update = function() {
 
     if(this.dir.length() > 0) {
         this.dir.normalize();
-        this.dir.scale(Player.speed);
+        this.dir.scale(Player.speed).scale(delta);
         this.pos.add(this.dir);
     }
 
@@ -248,7 +263,7 @@ Player.prototype.update = function() {
     if(this.pos.y > main_canvas.height - rad)
         this.pos.y = main_canvas.height - rad;
 
-    Player.shoot();
+    this.shoot();
 
 };
 
@@ -268,7 +283,8 @@ Player.prototype.hit = function(dmg) {
     }
 };
 
-Player.shoot = function() {
+Player.prototype.shoot = function() {
+    if(paused) return;
     var pos = new Vector(player.pos.x, player.pos.y);
     var dir = new Vector(0, 0);
     var weapon = WEAPON_TRIPLE;
@@ -276,6 +292,7 @@ Player.shoot = function() {
         dir = new Vector(mousePos.x - player.pos.x, mousePos.y - player.pos.y);
         weapon = mouseStates[CLICK_LEFT] ? WEAPON_CLASSIC : WEAPON_TRIPLE;
     } else {
+        weapon = WEAPON_CLASSIC;
         if(keyStates[ARROW_LEFT] && !keyStates[ARROW_RIGHT]) {
             dir.x = -1;
         } else if(keyStates[ARROW_RIGHT] && !keyStates[ARROW_LEFT]) {
@@ -287,9 +304,11 @@ Player.shoot = function() {
             dir.y = 1;
         }
     }
-    if(dir.x !=  0 || dir.y != 0) {
-        dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.2));
+    console.log(this.lastShot + " " + weapon.canShoot(this.lastShot));
+    if((dir.x !=  0 || dir.y != 0) && weapon.canShoot(this.lastShot)) {
+        dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.01));
         weapon.shoot(pos, dir);
+        this.lastShot = 0;
     }
 };
 
@@ -300,7 +319,7 @@ function Enemy() {
     this.hp = 20;
     this.dead = false;
     this.pos = new Vector(Math.random() * main_canvas.width, Math.random() * main_canvas.height);
-    this.lastShot = Date.now() - Math.random() * 2500;
+    this.lastShot = 0;
 
     while(this.pos.dist(player.pos) < Enemy.minSpawnDistance) {
         this.pos = new Vector(Math.random() * main_canvas.width, Math.random() * main_canvas.height);
@@ -312,25 +331,23 @@ function Enemy() {
     else this.pos.y += this.hp + 5;
 }
 
-Enemy.speed = 1;
-Enemy.bulletSpeed = 6;
+Enemy.speed = 0.06;
+Enemy.bulletSpeed = 0.35;
 Enemy.minSpawnDistance = 300;
 
 Enemy.prototype.update = function() {
-    var now = Date.now();
-
     var distToPlayer = this.pos.dist(player.pos);
     if(distToPlayer > 260) {
-        this.pos.add(new Vector(player.pos).sub(this.pos).normalize().scale(Enemy.speed));
+        this.pos.add(new Vector(player.pos).sub(this.pos).normalize().scale(Enemy.speed).scale(delta));
     } else if(distToPlayer < 240) {
-        this.pos.add(new Vector(player.pos).sub(this.pos).normalize().scale(-Enemy.speed));
+        this.pos.add(new Vector(player.pos).sub(this.pos).normalize().scale(-Enemy.speed).scale(delta));
     }
 
-    if(now - this.lastShot > 2500 && this.pos.dist(player.pos) < 500) {
+    this.lastShot += delta;
+    if(this.lastShot > 2500 && this.pos.dist(player.pos) < 500 && !paused) {
         this.shoot();
-        this.lastShot = now;
+        this.lastShot = 0;
     }
-
 };
 
 Enemy.prototype.render = function() {
@@ -393,7 +410,7 @@ function Bullet(pos, dir, color) {
 }
 
 Bullet.prototype.update = function() {
-    this.pos.add(this.dir);
+    this.pos.add(new Vector(this.dir).scale(delta));
 };
 
 Bullet.prototype.render = function() {
@@ -437,7 +454,7 @@ Bullet.updateAll = function() {
 };
 
 Bullet.renderAll = function() {
-    if(!player.dead) {
+    if(!player.dead && !paused) {
         trail_g.fillStyle = "rgba(0, 0, 0, .2)";
         trail_g.fillRect(0, 0, trail_canvas.width, trail_canvas.height);
         for (var i = 0; i < bullets.length; i++)
@@ -460,8 +477,10 @@ function TextParticle(text, pos) {
     this.pos = new Vector(pos);
 }
 
+TextParticle.verticalSpeed = -0.05;
+
 TextParticle.prototype.update = function() {
-    this.pos.sub(0, 1);
+    this.pos.add(new Vector(0, TextParticle.verticalSpeed).scale(delta));
     this.opacity -= 0.03;
 };
 
@@ -493,17 +512,13 @@ TextParticle.spawn = function(text, pos) {
 //Classic weapon
 function Weapon() {
     this.freq = 10;
-    this.lastBullet = Date.now();
 }
 Weapon.prototype.shoot = function(o, dir) {
-    if(this.canShoot()) {
-        Bullet.spawn(o, dir);
-        this.lastBullet = Date.now();
-    }
+    Bullet.spawn(o, dir);
 };
 
-Weapon.prototype.canShoot = function() {
-    return this.lastBullet + (1000 / this.freq) < Date.now();
+Weapon.prototype.canShoot = function(last) {
+    return last > (1000 / this.freq);
 };
 
 //Tripple beam weapon
@@ -512,19 +527,16 @@ function TripleBeamWeapon() {
     this.freq = 4;
 }
 TripleBeamWeapon.prototype.shoot = function(o, dir) {
-    if(this.canShoot()) {
-        var dir1 = new Vector(dir);
-        var dir2 = new Vector(dir).rotate(toRadians(10));
-        var dir3 = new Vector(dir).rotate(toRadians(-10));
-        Bullet.spawn(o, dir1);
-        Bullet.spawn(o, dir2);
-        Bullet.spawn(o, dir3);
-        this.lastBullet = Date.now();
-    }
+    var dir1 = new Vector(dir);
+    var dir2 = new Vector(dir).rotate(toRadians(10));
+    var dir3 = new Vector(dir).rotate(toRadians(-10));
+    Bullet.spawn(o, dir1);
+    Bullet.spawn(o, dir2);
+    Bullet.spawn(o, dir3);
 };
 
-TripleBeamWeapon.prototype.canShoot = function() {
-    return this.lastBullet + (1000 / this.freq) < Date.now();
+TripleBeamWeapon.prototype.canShoot = function(last) {
+    return last > (1000 / this.freq);
 };
 
 
