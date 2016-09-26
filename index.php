@@ -13,5 +13,6 @@
 <canvas id="upgaming"></canvas>
 <canvas id="trail_canvas" style="display: none"></canvas>
 </body>
+<script language="javascript" src="jsmin/vector.min.js?timestamp=<?php echo time(); ?>" type="text/javascript"></script>
 <script language="javascript" src="jsmin/upgaming.min.js?timestamp=<?php echo time(); ?>" type="text/javascript"></script>
 </html>

@@ -21,6 +21,7 @@ var debugEnabled = false;
 var score = 0;
 
 var paused = false;
+var focused = true;
 
 var WEAPON_CLASSIC = new Weapon();
 var WEAPON_TRIPLE = new TripleBeamWeapon();
@@ -39,7 +40,7 @@ function frame() {
 
 function update() {
     if(player.dead) return;
-    if(paused) delta = 0;
+    if(paused || !focused) delta = 0;
     aliveTime += delta;
     maxEnemies = startingEnemies + aliveTime / 30000;
     player.update();
@@ -93,12 +94,14 @@ function drawInfo() {
     g.fillText("Score: " + Math.round(score), main_canvas.width - g.measureText("Score: " + Math.round(score)).width - 10, 20 + 22 * 2);
 
     g.fillText("McMacker4.com © 2016", main_canvas.width - g.measureText("McMacker4.com © 2016").width - 10, main_canvas.height - 3);
-    
-    if(paused) {
+
+    if(paused && !player.dead) {
         g.font = "120px Verdana";
         g.fontWeight = "bold";
         g.fillStyle = "#FFF";
         g.fillText("PAUSED", main_canvas.width / 2 - g.measureText("PAUSED").width / 2, main_canvas.height / 2);
+        g.font = "16px Verdana";
+        g.fillText("Press Esc to unpause.", main_canvas.width / 2 - g.measureText("Press Esc to unpause.").width / 2, main_canvas.height / 2 + 18);
     }
 
 
@@ -142,7 +145,7 @@ function drawDebugInfo() {
     g.fillText("Bullets: " + bullets.length, 10, 20 + 18 * 2);
     g.fillText("Enemies: " + enemies.length, 10, 20 + 18 * 3);
     g.fillText("Dist player <-> mouse: " + player.pos.dist(mousePos), 10, 20 + 18 * 4);
-    g.fillText("Player HP: " + player.hp + " (" + (player.dead ? "" : "not ") + "dead)", 10, 20 + 18 * 5)
+    g.fillText("Player HP: " + player.hp + " (" + (player.dead ? "" : "not ") + "dead)", 10, 20 + 18 * 5);
     g.fillText("'R' to disable debug.", 10, 20 + 18 * 6);
 }
 
@@ -188,7 +191,7 @@ window.onkeyup = function(evt) {
         debugEnabled = !debugEnabled;
     if((player.dead && evt.keyCode == KEY_SPACE) || evt.keyCode == KEY_X)
         reset();
-    if(evt.keyCode == KEY_ESCAPE)
+    if(evt.keyCode == KEY_ESCAPE && !player.dead)
         paused = !paused;
 };
 
@@ -211,6 +214,15 @@ main_canvas.onmouseleave = function() {
     mouseStates[CLICK_LEFT] = false;
     mouseStates[CLICK_MIDDLE] = false;
     mouseStates[CLICK_RIGHT] = false;
+};
+
+// window.onfocus = function() {
+//     focused = true;
+//     delta = 0;
+// };
+
+window.onblur = function() {
+    paused = true;
 };
 
 //================== CLASSES ====================
@@ -304,7 +316,6 @@ Player.prototype.shoot = function() {
             dir.y = 1;
         }
     }
-    console.log(this.lastShot + " " + weapon.canShoot(this.lastShot));
     if((dir.x !=  0 || dir.y != 0) && weapon.canShoot(this.lastShot)) {
         dir.normalize().scale(Player.bulletSpeed).add(player.dir.scale(0.01));
         weapon.shoot(pos, dir);
@@ -378,6 +389,9 @@ Enemy.prototype.hit = function(dmg) {
 };
 
 Enemy.prototype.shoot = function() {
+    //This line is saved for when difficulty levels are implemented.
+    //Change the 0.2 with lower values for lower difficulty. (0.2 -> hard)
+    //var bulletDir = new Vector(player.pos).add(new Vector(player.dir).scale(player.pos.dist(this.pos) * 0.2)).sub(this.pos).normalize();
     var bulletDir = new Vector(player.pos).sub(this.pos).normalize();
     bullets.push(new Bullet(this.pos, bulletDir.scale(Enemy.bulletSpeed), "#90F"));
 };
@@ -427,23 +441,24 @@ Bullet.updateAll = function() {
         if (bullet.pos.x < 0 || bullet.pos.x > main_canvas.width || bullet.pos.y < 0 || bullet.pos.y > main_canvas.height) {
             bullets.splice(i--, 1);
         } else {
+            var dist;
+            var dmg;
             bullet.update();
             if(bullet.color == "#0F0") {
                 for (var j = 0; j < enemies.length; j++) {
                     var enemy = enemies[j];
                     if (bullet.pos.dist(enemy.pos) < enemy.hp + 5 + bullet.size) {
-                        var dist = bullet.spawnPoint.dist(enemy.pos);
-                        var dmg = dist < 350 ? 5 - 0.0000325 * Math.pow(bullet.spawnPoint.dist(enemy.pos), 2) : 1;
+                        dist = bullet.spawnPoint.dist(enemy.pos);
+                        dmg = dist < 350 ? 5 - 0.0000325 * Math.pow(bullet.spawnPoint.dist(enemy.pos), 2) : 1;
                         enemy.hit(dmg);
                         score += dmg;
-                        //bullets.splice(i--, 1);
                         break;
                     }
                 }
             } else if(bullet.color == "#90F") {
                 if (bullet.pos.dist(player.pos) < player.hp * 0.1 + 10 + bullet.size) {
-                    var dist = bullet.spawnPoint.dist(player.pos);
-                    var dmg = dist < 350 ? 5 - 0.0000325 * Math.pow(bullet.spawnPoint.dist(player.pos), 2) : 1;
+                    dist = bullet.spawnPoint.dist(player.pos);
+                    dmg = dist < 350 ? 5 - 0.0000325 * Math.pow(bullet.spawnPoint.dist(player.pos), 2) : 1;
                     player.hit(dmg);
                     bullets.splice(i--, 1);
                     break;
@@ -538,96 +553,6 @@ TripleBeamWeapon.prototype.shoot = function(o, dir) {
 TripleBeamWeapon.prototype.canShoot = function(last) {
     return last > (1000 / this.freq);
 };
-
-
-//-------Vector--------------
-function Vector(x, y) {
-    if(typeof x == 'number' && typeof y == 'number') {
-        this.x = x;
-        this.y = y;
-    } else if(x instanceof Vector) {
-        this.x = x.x;
-        this.y = x.y;
-    } else {
-        console.error("Invalid parameter type.");
-    }
-}
-
-Vector.prototype.add = function(x, y) {
-    if(x instanceof Vector) {
-        this.x += x.x;
-        this.y += x.y;
-    } else if(typeof x == 'number' && typeof y == 'number') {
-        this.x += x;
-        this.y += y;
-    } else {
-        console.error("Invalid parameter type.");
-    }
-    return this;
-};
-
-Vector.prototype.sub = function(x, y) {
-    if(x instanceof Vector) {
-        this.x -= x.x;
-        this.y -= x.y;
-    } else if(typeof x == 'number' && typeof y == 'number') {
-        this.x -= x;
-        this.y -= y;
-    } else {
-        console.error("Invalid parameter type.");
-    }
-    return this;
-};
-
-Vector.prototype.normalize = function() {
-    var len = this.length();
-    this.x /= len;
-    this.y /= len;
-    return this;
-};
-
-Vector.prototype.length = function() {
-    return Math.sqrt(Math.pow(this.x, 2) + Math.pow(this.y, 2));
-};
-
-Vector.prototype.scale = function(scl) {
-    if(typeof scl == 'number') {
-        this.x *= scl;
-        this.y *= scl;
-    } else {
-        console.error("Invalid parameter type.");
-    }
-    return this;
-};
-
-Vector.prototype.set = function(x, y) {
-    if(typeof x == 'number' && typeof y == 'number') {
-        this.x = x;
-        this.y = y;
-    } else {
-        console.error("Invalid parameter type.");
-    }
-};
-
-Vector.prototype.dist = function(vec) {
-    return Math.sqrt(Math.pow(Math.abs(vec.x - this.x), 2) + Math.pow(Math.abs(vec.y - this.y), 2));
-};
-
-Vector.prototype.rotate = function(angle) {
-    var sin = Math.sin(angle);
-    var cos = Math.cos(angle);
-    var x = this.x * cos - this.y * sin;
-    var y = this.x * sin + this.y * cos;
-    this.x = x;
-    this.y = y;
-    return this;
-};
-
-
-function toRadians(deg) {
-    return deg * Math.PI / 180;
-}
-
 
 //Initializing stuff
 lastFrame = Date.now();
