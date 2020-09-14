@@ -1,4 +1,4 @@
-//Author: McMacker4 (Hans) Under MIT License - 2016
+//Author: Hans Geel - Under MIT License - 2016
 
 var main_canvas = document.getElementById("upgaming");
 var trail_canvas = document.getElementById("trail_canvas");
@@ -93,7 +93,7 @@ function drawInfo() {
     g.fillText("Time: " + time, main_canvas.width - g.measureText("Time: " + time).width - 10, 20 + 22);
     g.fillText("Score: " + Math.round(score), main_canvas.width - g.measureText("Score: " + Math.round(score)).width - 10, 20 + 22 * 2);
 
-    g.fillText("McMacker4.com © 2016", main_canvas.width - g.measureText("McMacker4.com © 2016").width - 10, main_canvas.height - 3);
+    g.fillText("upgaming.hgg.es © 2016", main_canvas.width - g.measureText("upgaming.hgg.es © 2016").width - 10, main_canvas.height - 3);
 
     if(paused && !player.dead) {
         g.font = "120px Verdana";
