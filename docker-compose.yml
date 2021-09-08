@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  upgaming:
+    image: registry.gitlab.com/mcmacker4/upgaming/upgaming
+    build: .
+    networks:
+      - balancernet
+
+networks:
+  balancernet:
+    external: true
